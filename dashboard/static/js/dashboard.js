@@ -671,7 +671,13 @@ function initPlayground() {
 
   form.addEventListener('submit', async e => {
     e.preventDefault();
-    await submitPrediction();
+    const btn = document.querySelector('.btn-predict');
+    try {
+      await submitPrediction();
+    } catch (err) {
+      console.error('Prediction failed:', err);
+      if (btn) { btn.textContent = 'Predict →'; btn.disabled = false; }
+    }
   });
 
   document.getElementById('pg-random')?.addEventListener('click', fillRandom);

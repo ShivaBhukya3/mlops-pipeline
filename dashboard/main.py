@@ -305,7 +305,7 @@ async def recent_predictions():
 async def predict_proxy(request: Request):
     body = await request.json()
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             r = await client.post(f"{ML_API_URL}/predict", json=body)
             if r.status_code == 200:
                 return r.json()
