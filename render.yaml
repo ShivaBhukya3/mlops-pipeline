@@ -18,7 +18,6 @@ services:
         value: config/config.yaml
       - key: MLFLOW_TRACKING_URI
         value: mlruns
-      # PORT is injected automatically by Render
 
   # ── 2. Dashboard (Main UI) ───────────────────────────────────────────────
   - type: web
@@ -34,9 +33,7 @@ services:
         fromService:
           name: mlops-api
           type: web
-          property: host
-          envVarKey: ML_API_URL
-      # PORT is injected automatically by Render
+          property: hostport
 
   # ── 3. MLflow Tracking UI ────────────────────────────────────────────────
   - type: web
@@ -44,7 +41,6 @@ services:
     runtime: docker
     dockerfilePath: ./docker/Dockerfile.mlflow
     plan: free
-    healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
