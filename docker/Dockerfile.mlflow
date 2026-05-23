@@ -4,9 +4,13 @@ RUN pip install --no-cache-dir mlflow psycopg2-binary
 
 EXPOSE 5000
 
-# Render injects DATABASE_URL and PORT automatically
-CMD mlflow server \
-    --backend-store-uri ${DATABASE_URL:-sqlite:///mlflow.db} \
+# Render injects DATABASE_URL and PORT automatically.
+# Render's Postgres URL starts with "postgres://" but SQLAlchemy needs "postgresql://"
+CMD sh -c '\
+  DB="${DATABASE_URL:-sqlite:///mlflow.db}"; \
+  DB="${DB/postgres:\/\//postgresql://}"; \
+  mlflow server \
+    --backend-store-uri "$DB" \
     --default-artifact-root /tmp/mlflow-artifacts \
     --host 0.0.0.0 \
-    --port ${PORT:-5000}
+    --port "${PORT:-5000}"'
