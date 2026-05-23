@@ -21,7 +21,7 @@ from fastapi.requests import Request
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
 
-BASE_DIR = Path(__file__).parent
+BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
 STATIC_DIR = BASE_DIR / "static"
 
@@ -187,7 +187,15 @@ async def index(request: Request):
     try:
         return templates.TemplateResponse(request=request, name="index.html")
     except Exception:
-        return templates.TemplateResponse("index.html", {"request": request})
+        pass
+    try:
+        html = (TEMPLATES_DIR / "index.html").read_text(encoding="utf-8")
+        return HTMLResponse(content=html)
+    except Exception as e:
+        return HTMLResponse(
+            content=f"<h1>Dashboard load error</h1><pre>{e}</pre><p>TEMPLATES_DIR: {TEMPLATES_DIR}</p>",
+            status_code=500,
+        )
 
 
 @app.get("/health")
