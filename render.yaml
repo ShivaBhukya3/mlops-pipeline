@@ -30,10 +30,7 @@ services:
       - key: CONFIG_PATH
         value: config/config.yaml
       - key: ML_API_URL
-        fromService:
-          name: mlops-api
-          type: web
-          property: hostport
+        value: https://mlops-api-z4o1.onrender.com
 
   # MLflow UI is excluded from Render (exceeds 512 MB free-tier RAM limit).
   # Run it locally with: mlflow ui --port 5000

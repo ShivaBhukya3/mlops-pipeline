@@ -184,7 +184,10 @@ async def proxy_or_mock(path: str, fallback_fn):
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    try:
+        return templates.TemplateResponse(request=request, name="index.html")
+    except Exception:
+        return templates.TemplateResponse("index.html", {"request": request})
 
 
 @app.get("/health")
