@@ -4,13 +4,13 @@ RUN pip install --no-cache-dir mlflow psycopg2-binary
 
 EXPOSE 5000
 
-# Render injects DATABASE_URL and PORT automatically.
-# Render's Postgres URL starts with "postgres://" but SQLAlchemy needs "postgresql://"
+# Use sed (POSIX) to rewrite postgres:// -> postgresql:// for SQLAlchemy.
+# --workers 1 keeps memory under Render's 512 MB free-tier limit.
 CMD sh -c '\
-  DB="${DATABASE_URL:-sqlite:///mlflow.db}"; \
-  DB="${DB/postgres:\/\//postgresql://}"; \
+  DB=$(echo "${DATABASE_URL:-sqlite:///mlflow.db}" | sed "s|postgres://|postgresql://|g") && \
   mlflow server \
     --backend-store-uri "$DB" \
     --default-artifact-root /tmp/mlflow-artifacts \
     --host 0.0.0.0 \
-    --port "${PORT:-5000}"'
+    --port "${PORT:-5000}" \
+    --workers 1'
