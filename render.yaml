@@ -35,14 +35,5 @@ services:
           type: web
           property: hostport
 
-  # ── 3. MLflow Tracking UI ────────────────────────────────────────────────
-  - type: web
-    name: mlops-mlflow
-    runtime: docker
-    dockerfilePath: ./docker/Dockerfile.mlflow
-    plan: free
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: mlops-postgres
-          property: connectionString
+  # MLflow UI is excluded from Render (exceeds 512 MB free-tier RAM limit).
+  # Run it locally with: mlflow ui --port 5000
