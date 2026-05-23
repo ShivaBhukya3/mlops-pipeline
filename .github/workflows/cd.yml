@@ -1,0 +1,160 @@
+name: CD — Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPO_API: mlops-fraud-detection/api
+  ECR_REPO_DASHBOARD: mlops-fraud-detection/dashboard
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    environment: staging
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.api
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_API }}:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_API }}:staging-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push Dashboard image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/Dockerfile.dashboard
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_DASHBOARD }}:${{ github.sha }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_DASHBOARD }}:staging-latest
+
+      - name: Update ECS service (staging)
+        run: |
+          aws ecs update-service \
+            --cluster mlops-staging \
+            --service mlops-api-staging \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+          aws ecs update-service \
+            --cluster mlops-staging \
+            --service mlops-dashboard-staging \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for deployment
+        run: |
+          aws ecs wait services-stable \
+            --cluster mlops-staging \
+            --services mlops-api-staging mlops-dashboard-staging \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Run smoke tests
+        run: |
+          STAGING_URL="${{ secrets.STAGING_API_URL }}"
+          curl -f "${STAGING_URL}/health" && echo "API health OK"
+          curl -f "${STAGING_URL}/model/info" && echo "Model info OK"
+
+      - name: Notify Slack
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: "Staging deploy ${{ job.status }} — ${{ github.sha }}"
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+    needs: deploy-staging
+    if: github.event.inputs.environment == 'production' || github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Promote staging images to production
+        run: |
+          aws ecr batch-delete-image \
+            --repository-name ${{ env.ECR_REPO_API }} \
+            --image-ids imageTag=production-latest || true
+
+          MANIFEST=$(aws ecr batch-get-image \
+            --repository-name ${{ env.ECR_REPO_API }} \
+            --image-ids imageTag=${{ github.sha }} \
+            --query 'images[].imageManifest' --output text)
+
+          aws ecr put-image \
+            --repository-name ${{ env.ECR_REPO_API }} \
+            --image-tag production-latest \
+            --image-manifest "$MANIFEST"
+
+      - name: Update ECS service (production)
+        run: |
+          aws ecs update-service \
+            --cluster mlops-production \
+            --service mlops-api-production \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Promote MLflow model to Production
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          pip install mlflow -q
+          python -c "
+          import mlflow
+          from mlflow.tracking import MlflowClient
+          client = MlflowClient()
+          versions = client.get_latest_versions('fraud-detector', stages=['Staging'])
+          if versions:
+              client.transition_model_version_stage(
+                  'fraud-detector', versions[0].version, 'Production',
+                  archive_existing_versions=True
+              )
+              print(f'Promoted v{versions[0].version} to Production')
+          "

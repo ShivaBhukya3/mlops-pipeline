@@ -1,0 +1,23 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libgomp1 bash && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir \
+    xgboost scikit-learn imbalanced-learn numpy pandas joblib pyyaml \
+    mlflow click rich scipy pyarrow
+
+COPY src/ ./src/
+COPY config/ ./config/
+COPY scripts/ ./scripts/
+
+ENTRYPOINT ["python", "scripts/train.py"]
+CMD ["train"]

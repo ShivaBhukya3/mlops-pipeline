@@ -1,0 +1,90 @@
+version: "3.9"
+
+# ── Railway Production Compose ─────────────────────────────────────────────
+# Railway injects $DATABASE_URL automatically from the Postgres plugin.
+# All other vars are set in the Railway dashboard under Variables.
+
+services:
+
+  # ── Train model on startup (runs once, then exits) ─────────────────────
+  training:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.training
+    command: >
+      bash -c "
+        python scripts/train.py ingest &&
+        python scripts/train.py preprocess-cmd &&
+        python scripts/train.py train
+      "
+    environment:
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-mlruns}
+      CONFIG_PATH: config/config.yaml
+    volumes:
+      - model-data:/app/data
+      - mlflow-store:/app/mlruns
+      - model-files:/app/models
+
+  # ── MLflow Tracking Server ─────────────────────────────────────────────
+  mlflow:
+    image: python:3.11-slim
+    command: >
+      bash -c "pip install mlflow psycopg2-binary -q &&
+      mlflow server
+        --backend-store-uri ${DATABASE_URL:-sqlite:///mlflow.db}
+        --default-artifact-root /mlflow/artifacts
+        --host 0.0.0.0 --port 5000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-store:/mlflow/artifacts
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    depends_on:
+      training:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ── ML Serving API ────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - model-data:/app/data
+      - mlflow-store:/app/mlruns
+      - model-files:/app/models
+    environment:
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-mlruns}
+      CONFIG_PATH: config/config.yaml
+      PORT: 8000
+    depends_on:
+      training:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ── Dashboard ─────────────────────────────────────────────────────────
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.dashboard
+    ports:
+      - "${PORT:-8050}:8050"
+    volumes:
+      - model-data:/app/data
+      - mlflow-store:/app/mlruns
+      - model-files:/app/models
+    environment:
+      ML_API_URL: ${ML_API_URL:-http://api:8000}
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-mlruns}
+      CONFIG_PATH: config/config.yaml
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  model-data:
+  mlflow-store:
+  model-files:

@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+
+RUN pip install --no-cache-dir mlflow psycopg2-binary
+
+EXPOSE 5000
+
+# Render injects DATABASE_URL and PORT automatically
+CMD mlflow server \
+    --backend-store-uri ${DATABASE_URL:-sqlite:///mlflow.db} \
+    --default-artifact-root /tmp/mlflow-artifacts \
+    --host 0.0.0.0 \
+    --port ${PORT:-5000}

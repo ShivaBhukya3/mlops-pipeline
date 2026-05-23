@@ -1,0 +1,85 @@
+project:
+  name: "mlops-fraud-detection"
+  version: "1.0.0"
+  description: "Real-time ML Pipeline for Fraud Detection"
+
+data:
+  raw_path: "data/raw"
+  processed_path: "data/processed"
+  reference_path: "data/reference"
+  n_samples: 100000
+  fraud_ratio: 0.02
+  test_size: 0.2
+  val_size: 0.1
+  random_state: 42
+  features:
+    - amount
+    - hour
+    - day_of_week
+    - merchant_category
+    - distance_from_home
+    - distance_from_last_transaction
+    - ratio_to_median_purchase_price
+    - repeat_retailer
+    - used_chip
+    - used_pin_number
+    - online_order
+
+training:
+  model_type: "xgboost"
+  hyperparameters:
+    n_estimators: 200
+    max_depth: 6
+    learning_rate: 0.1
+    subsample: 0.8
+    colsample_bytree: 0.8
+    min_child_weight: 1
+    gamma: 0
+    reg_alpha: 0
+    reg_lambda: 1
+    scale_pos_weight: 49
+    use_label_encoder: false
+    eval_metric: "auc"
+  cv_folds: 5
+  early_stopping_rounds: 20
+
+mlflow:
+  tracking_uri: "mlruns"
+  experiment_name: "fraud-detection"
+  model_name: "fraud-detector"
+  artifact_location: "mlruns"
+
+serving:
+  host: "0.0.0.0"
+  port: 8000
+  workers: 4
+  model_stage: "Production"
+  prediction_threshold: 0.5
+
+monitoring:
+  drift_threshold: 0.1
+  psi_threshold: 0.2
+  alert_email: "mlops@company.com"
+  check_interval_minutes: 60
+  reference_window_days: 30
+  metrics_window_hours: 24
+
+dashboard:
+  host: "0.0.0.0"
+  port: 8050
+  refresh_interval_seconds: 10
+
+airflow:
+  schedule:
+    ingestion: "0 */6 * * *"
+    training: "0 2 * * 0"
+    monitoring: "0 * * * *"
+
+aws:
+  region: "us-east-1"
+  s3_bucket: "mlops-fraud-detection"
+  ecr_repository: "mlops-fraud-detection"
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

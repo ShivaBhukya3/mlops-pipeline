@@ -1,0 +1,52 @@
+databases:
+  - name: mlops-postgres
+    databaseName: mlops
+    user: mlops
+    plan: free
+
+services:
+
+  # ── 1. ML Serving API ────────────────────────────────────────────────────
+  - type: web
+    name: mlops-api
+    runtime: docker
+    dockerfilePath: ./docker/Dockerfile.api
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: CONFIG_PATH
+        value: config/config.yaml
+      - key: MLFLOW_TRACKING_URI
+        value: mlruns
+      # PORT is injected automatically by Render
+
+  # ── 2. Dashboard (Main UI) ───────────────────────────────────────────────
+  - type: web
+    name: mlops-dashboard
+    runtime: docker
+    dockerfilePath: ./docker/Dockerfile.dashboard
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: CONFIG_PATH
+        value: config/config.yaml
+      - key: ML_API_URL
+        fromService:
+          name: mlops-api
+          type: web
+          property: host
+          envVarKey: ML_API_URL
+      # PORT is injected automatically by Render
+
+  # ── 3. MLflow Tracking UI ────────────────────────────────────────────────
+  - type: web
+    name: mlops-mlflow
+    runtime: docker
+    dockerfilePath: ./docker/Dockerfile.mlflow
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: mlops-postgres
+          property: connectionString
