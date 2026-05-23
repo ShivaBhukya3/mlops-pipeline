@@ -2,7 +2,7 @@
 
 > Real-time credit card fraud detection with end-to-end MLOps — training, serving, monitoring, and CI/CD.
 
-[![CI](https://github.com/YOUR_USERNAME/mlops-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/mlops-pipeline/actions/workflows/ci.yml)
+[![CI](https://github.com/ShivaBhukya3/mlops-pipeline/actions/workflows/ci.yml/badge.svg)](https://github.com/ShivaBhukya3/mlops-pipeline/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://python.org)
 [![XGBoost](https://img.shields.io/badge/model-XGBoost-orange.svg)](https://xgboost.readthedocs.io)
 [![MLflow](https://img.shields.io/badge/tracking-MLflow-blue.svg)](https://mlflow.org)
